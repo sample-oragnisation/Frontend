@@ -1,82 +1,99 @@
 import React, { useEffect, useState } from 'react';
 import { Line } from 'react-chartjs-2';
 import 'chartjs-adapter-date-fns';
-import axios from 'axios'; 
+import axios from 'axios';
+import TileBar from '../Home/Tile'; // Import the TileBar component
+import { Chart, Title, ArcElement, Tooltip, Legend, PointElement, LineElement, CategoryScale, LinearScale, TimeScale } from 'chart.js';
 
-function calculateElectricityBill(unitsConsumed) {
-    let totalBill = 0;
-
-    if (unitsConsumed <= 100) {
-        totalBill = unitsConsumed * 5.50;
-    } else if (unitsConsumed <= 500) {
-        totalBill = (100 * 5.50) + ((unitsConsumed - 100) * 6.70);
-    } else {
-        totalBill = (100 * 5.50) + (400 * 6.70) + ((unitsConsumed - 500) * 7.10);
-    }
-
-    return totalBill;
-}
+Chart.register(Title, Tooltip, ArcElement, Legend, PointElement, LineElement, CategoryScale, LinearScale, TimeScale);
 
 function PredictionChart() {
     const [data, setData] = useState([]);
     const [date, setDate] = useState([]);
     const [prediction, setPrediction] = useState([]);
-
-    const [selectedOption, setSelectedOption] = useState('energy');
+    const [selectedOption, setSelectedOption] = useState('');
     const [PredictionDataTomorrow, setPredictionData] = useState(0);
-    const [PredictionDatatAvgWeek, setPredcitonDataAvgWeek] = useState(0);
+    const [PredictionDataAvgWeek, setPredictionDataAvgWeek] = useState(0);
+    const [chartColor, setChartColor] = useState(['rgba(173, 216, 230, 0.2)', 'rgba(0, 0, 139, 0.6)']); // Default colors
 
     useEffect(() => {
-        let url = 'http://localhost:3000/api/'; 
-        url += selectedOption === 'energy' ? 'predict_energy' : 'predict_solar';
-
-        axios.post(url)
-            .then(response => {
-                console.log(response.data);
-                setData(response.data); 
-            })
-            .catch(error => {
-                console.error('There was an error!', error);
-            });
+        if (selectedOption) {
+            const url = `http://localhost:3000/predictEnergy/${selectedOption}`;
+            
+            axios.get(url)
+                .then(response => {
+                    const forecastData = response.data;
+                    console.log('Forecast Data:', forecastData);
+                    setData(forecastData); 
+                })
+                .catch(error => {
+                    console.error('Error Message:', error.message);
+                    console.error('Error Details:', error.response?.data);
+                    console.error('Error Status:', error.response?.status);
+                });
+        }
     }, [selectedOption]);
-
-    const handleDropdownChange = (e) => {
-        setSelectedOption(e.target.value); 
-    }
 
     useEffect(() => {
         if (data && data.length > 0) {
-            const date = data.map((item) => item.Date);
-            const prediction = data.map((item) => item.Prediction);
+            const date = data.map((item) => item.date);
+            const prediction = data.map((item) => item.forecast);
 
             setDate(date);
             setPrediction(prediction);
 
             const sum = prediction.reduce((a, b) => a + b, 0);
             setPredictionData(sum);
-            setPredcitonDataAvgWeek(calculateElectricityBill(sum)); 
+            setPredictionDataAvgWeek(calculateElectricityBill(sum)); 
+        } else {
+            // Reset chart data when no data is available
+            setDate([]);
+            setPrediction([]);
         }
     }, [data]);
+
+    const handleDropdownChange = (event) => {
+        setSelectedOption(event.target.value);
+        if (event.target.value === 'electric') {
+            setChartColor(['rgba(173, 216, 230, 0.2)', 'rgba(0, 0, 139, 0.6)']); // Light blue fill and dark blue border
+        } else {
+            setChartColor(['rgba(144, 238, 144, 0.2)', 'rgba(0, 128, 0, 0.6)']); // Light green fill and dark green border
+        }
+    };
 
     const data_chart = {
         labels: date,
         datasets: [
             {
-                label: selectedOption === 'energy' ? 'Energy Production (in kW/h)' : 'Solar Energy Production (in kW/h)',
-                backgroundColor: selectedOption === 'energy' ? 'blue' : 'green',
-                borderColor: selectedOption === 'energy' ? 'blue' : 'green',
+                label: selectedOption === 'electric' ? 'Energy Production (in kW/h)' : 'Solar Energy Production (in kW/h)',
+                backgroundColor: chartColor[0], // Lighter fill color
+                borderColor: chartColor[1], // Darker border color
+                borderWidth: 2, // Set border width to make it visible
                 data: prediction,
+                fill: true,
+                tension: 0.1,
             },
         ]
     };
 
     const options = {
-        showLines: true,
+        responsive: true,
+        plugins: {
+            legend: {
+                position: 'top',
+            },
+            tooltip: {
+                callbacks: {
+                    label: function(tooltipItem) {
+                        return `${tooltipItem.dataset.label}: ${tooltipItem.raw} kW/h`;
+                    }
+                }
+            }
+        },
         scales: {
             x: {
                 type: 'time',
                 time: {
-                    parser: 'yyyy-MM-dd',
                     unit: 'day',
                     displayFormats: {
                         day: 'dd/MM/yyyy'
@@ -84,10 +101,10 @@ function PredictionChart() {
                 },
                 title: {
                     display: true,
-                    text: 'Time'
+                    text: 'Date'
                 },
                 grid: {
-                    color: 'rgba(255, 255, 255, 0.1)',
+                    color: 'rgba(0, 0, 0, 0)',
                 },
             },
             y: {
@@ -96,47 +113,25 @@ function PredictionChart() {
                     text: 'Energy Usage (in kW/h)'
                 },
                 grid: {
-                    color: 'rgba(255, 255, 255, 0.1)',
-                    lineWidth: 1
+                    color: 'rgba(0, 0, 0, 0.1)',
                 }
             }
         }
     };
 
+    const calculateElectricityBill = (total) => {
+        // Implement your billing calculation logic here
+        return total * 0.15; // Example calculation
+    };
+
     return (
         <>
-            <div className='flex flex-col justify-items items-center'>
-                <div className='grid grid-cols-3 gap-5 m-4 ml-10 mr-10 h-[20vh] w-[98%]'>
-                    <div className='bg-tilebox h-full bg-white rounded-lg'>
-                        <div className='flex flex-col justify-center'>
-                            <div className='m-2 text-xs font-bold'>TOTAL ENERGY USAGE</div>
-                            <span><div className='text-center m-2 text-4xl'>{PredictionDataTomorrow}</div>
-                                <div className='text-center m-2 text-2xl'>KW/Hr</div></span>
-                        </div>
-                    </div>
-                    <div className='bg-tilebox h-full bg-white rounded-lg'>
-                        <div className='flex flex-col justify-center'>
-                            <div className='m-2 text-xs font-bold'>TOTAL ENERGY COST</div>
-                            <span className='flex flex-row justify-center items-center p-3'>
-                                <div className='text-center m-2 text-4xl'>Rs.</div>
-                                <div className='text-center m-2 text-4xl'>{parseInt(PredictionDatatAvgWeek)}</div>
-                            </span>
-                        </div>
-                    </div>
-                    <div className='bg-tilebox h-full bg-white rounded-lg'>
-                        <div className='flex flex-col justify-center'>
-                            <div className='m-2 text-xs font-bold'>ENERGY AVERAGE</div>
-                            <span><div className='text-center m-2 text-4xl'>{parseInt(PredictionDataTomorrow / 12)}</div>
-                                <div className='text-center m-2 text-2xl'>KW/Hr</div></span>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <TileBar /> {/* Add the TileBar component here */}
             <div className='flex flex-row'>
-                <div className='bg-tilebox bg-white rounded-lg h-[55vh] ml-6 mr-4 w-[20vw] overflow-y-auto'>
-                    <div className='bg-tilebox bg-white rounded-lg'>
-                        <div className='flex flex-col justify-center '>
-                            <table className='border border-1 overflow-y-auto rounded-lg'>
+                <div className='bg-tilebox bg-white rounded-lg h-[62vh] ml-6 mr-4 mt-4 w-[20vw]'>
+                    <div className='bg-tilebox bg-white rounded-lg h-full overflow-y-auto'>
+                        <div className='flex flex-col justify-center'>
+                            <table className='border border-1 rounded-lg w-full'>
                                 <thead>
                                     <tr>
                                         <th className='px-4 py-2'>Date</th>
@@ -144,26 +139,33 @@ function PredictionChart() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {data.map((item, index) => (
-                                        <tr key={index}>
-                                            <td className='border px-4 py-2'>{item.Date}</td>
-                                            <td className='border px-4 py-2'>{item.Prediction}</td>
+                                    {data.length > 0 ? (
+                                        data.map((item, index) => (
+                                            <tr key={index}>
+                                                <td className='border px-4 py-2'>{item.date}</td>
+                                                <td className='border px-4 py-2'>{item.forecast}</td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr>
+                                            <td colSpan="2" className='border px-4 py-2 text-center'>No Data Available</td>
                                         </tr>
-                                    ))}
+                                    )}
                                 </tbody>
                             </table>
                         </div>
                     </div>
                 </div>
-                <div className='bg-tilebox bg-white rounded-lg h-[55vh] w-[50vw]'>
+                <div className='bg-tilebox bg-white rounded-lg h-[58vh] w-[50vw] mt-4'>
                     <div className='flex flex-col justify-center'>
                         <select value={selectedOption}
                             onChange={handleDropdownChange}
                             className='m-2 w-32'>
-                            <option value="energy">Electricity</option>
+                            <option value="">Select an option</option>
+                            <option value="electric">Electricity</option>
                             <option value="solar">Solar</option>
                         </select>
-                        <Line data={data_chart} options={options} />
+                        {selectedOption && <Line data={data_chart} options={options} />}
                     </div>
                 </div>
             </div>

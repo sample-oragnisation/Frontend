@@ -17,7 +17,7 @@ const VerticalNavbar = () => {
         <button onClick={() => navigate('/prediction')}><FontAwesomeIcon icon={faBarChart} color='black' size='1x' /></button>
       </div>
       {isAuthenticated && (
-        <div className=''>
+        <div className='pt-0'>
           <button onClick={() => navigate('/form')}><FontAwesomeIcon icon={faPlus} color='black' size='1x' /></button>
         </div>
       )}
